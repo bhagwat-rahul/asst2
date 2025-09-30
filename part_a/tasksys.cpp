@@ -55,9 +55,13 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
+    this->num_threads = num_threads;
+    threads = new std::thread[num_threads];
 }
 
-TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
+TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {
+  delete[] threads;
+}
 
 void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
 
@@ -67,9 +71,22 @@ void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
     // method in Part A.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
     //
-
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+    int num_batches = (num_total_tasks + num_threads - 1) / num_threads;
+    for (int batch = 0; batch < num_batches; batch++) {
+        for (int j = 0; j < num_threads; j++) {
+            int task_id = batch * num_threads + j;
+            if (task_id < num_total_tasks) {
+                threads[j] = std::thread([=]() {
+                    runnable->runTask(task_id, num_total_tasks);
+                });
+            }
+        }
+        for (int j = 0; j < num_threads; j++) {
+            int task_id = batch * num_threads + j;
+            if (task_id < num_total_tasks && threads[j].joinable()) {
+                threads[j].join();
+            }
+        }
     }
 }
 
